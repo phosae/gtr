@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
@@ -39,6 +40,7 @@ func main() {
 			return
 		}
 	}
+
 	valBytes, err := readFileOrDefaultFromPwd(pwd, values, []string{"vars", "vars.yml", "vars.yaml", "vars.json",
 		"values", "values.yml", "values.yaml", "values.json"})
 	if err != nil {
@@ -50,7 +52,25 @@ func main() {
 		fmt.Printf("values: \n%s\n", string(valBytes))
 	}
 
-	ret, err := render(cfgBytes, valBytes)
+	ret, err := render(cfgBytes, func() (map[string]interface{}, error) {
+		var varMap = map[string]interface{}{}
+		if envVars := os.Getenv("V"); envVars != "" {
+			for _, pair := range strings.Split(envVars, ",") {
+				kv := strings.Split(strings.TrimSpace(pair), "=")
+				if len(kv) != 2 {
+					log.Fatal(fmt.Errorf("invalid value env: %v, valid format `k1=v1,k2=v2`", err))
+				}
+				varMap[kv[0]] = kv[1]
+			}
+			return varMap, nil
+		}
+
+		d2 := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(valBytes), 1024)
+		if err = d2.Decode(&varMap); err != nil {
+			return nil, fmt.Errorf("only json/yaml values was supported")
+		}
+		return varMap, nil
+	})
 	if err != nil {
 		log.Fatal(fmt.Errorf("err render cfg: %v", err))
 	}
@@ -71,14 +91,14 @@ func readFileOrDefaultFromPwd(pwd, file string, defaults []string) ([]byte, erro
 	return nil, nil
 }
 
-func render(template, valBytes []byte) (rendered []byte, err error) {
-	if len(template) == 0 || len(valBytes) == 0 {
-		return template, nil
+func render(template []byte, tovars func() (map[string]interface{}, error)) (rendered []byte, err error) {
+	varMap, err := tovars()
+	if err != nil {
+		return nil, fmt.Errorf("err got vars map: %v", err)
 	}
-	var varMap map[string]interface{}
-	d2 := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(valBytes), 1024)
-	if err = d2.Decode(&varMap); err != nil {
-		return nil, fmt.Errorf("only json/yaml values was supported")
+
+	if len(template) == 0 || len(varMap) == 0 {
+		return template, nil
 	}
 	return merge(template, varMap)
 }

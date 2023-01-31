@@ -79,4 +79,23 @@ kind: VirtualMachine
 metadata:
   name: myvm
   namespace: test
+EOF
 ```
+
+render using values from env
+```
+cat << EOF | V="name=myvm,namespace=test" gocfgrender -c -
+pipe heredoc> apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{.name}}
+  namespace: {{.namespace}}
+pipe heredoc> EOF
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{.name}}
+  namespace: {{.namespace}}
+EOF
+```
+note: values from env has a higher precedence than values from file
