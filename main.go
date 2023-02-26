@@ -78,7 +78,9 @@ func main() {
 }
 
 func readFileOrDefaultFromPwd(pwd, file string, defaults []string) ([]byte, error) {
-	if file != "" {
+	if filepath.IsAbs(file) {
+		return os.ReadFile(file)
+	} else if file != "" {
 		return os.ReadFile(filepath.Join(pwd, file))
 	} else {
 		for _, name := range defaults {
