@@ -1,4 +1,4 @@
-module github.com/phosae/gocfgrender
+module github.com/phosae/gtr
 
 go 1.19
 
